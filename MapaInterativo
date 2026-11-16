@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Mapa interativo: jogos na prática psicopedagógica</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Nunito:wght@500;700;800&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#f3f5fb;--surface:#ffffff;--ink:#1c2233;--muted:#5b647c;--line:#c9d0e2;--on:#fff;
+  --b0:#2f5fd0;--b1:#0b7a6e;--b2:#a8540a;--b3:#b0345f;--b4:#6b4bc4;
+  box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);
+  color-scheme:light;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --bg:#141826;--surface:#1e2436;--ink:#eef1fa;--muted:#a3adc7;--line:#38415c;--on:#10131a;
+    --b0:#7ea2ff;--b1:#4fd1bf;--b2:#f0a64f;--b3:#f283ab;--b4:#b79bff;color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#141826;--surface:#1e2436;--ink:#eef1fa;--muted:#a3adc7;--line:#38415c;--on:#10131a;
+  --b0:#7ea2ff;--b1:#4fd1bf;--b2:#f0a64f;--b3:#f283ab;--b4:#b79bff;color-scheme:dark;
+}
+html,body{height:100%;margin:0}
+body{background:var(--bg);color:var(--ink);font-family:"Nunito",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;overflow:hidden}
+.app{position:relative;height:100%}
+svg#map{width:100%;height:100%;display:block;cursor:grab;touch-action:none}
+svg#map.drag{cursor:grabbing}
+.link{fill:none;stroke:var(--c);stroke-width:2.2;opacity:.55}
+.node{cursor:pointer;outline:none}
+.node rect{fill:var(--f);stroke:var(--c);stroke-width:2}
+.node text{fill:var(--t);font-size:14px;font-weight:700;text-anchor:middle;pointer-events:none}
+.node.l0 rect{--f:var(--ink);stroke:var(--ink)}
+.node.l0 text{--t:var(--bg);font-size:16px;font-weight:800}
+.node.l1 rect{--f:var(--c)}
+.node.l1 text{--t:var(--on)}
+.node.l2 rect{--f:color-mix(in srgb,var(--c) 14%,var(--surface))}
+.node.l2 text{--t:var(--ink);font-weight:600}
+.node.sel rect{stroke:var(--ink);stroke-width:3.5}
+.node:focus-visible rect{stroke:var(--ink);stroke-width:3.5;stroke-dasharray:5 3}
+.node .badge{fill:var(--surface);stroke:var(--c);stroke-width:2}
+.node .badge-t{fill:var(--ink);font-size:13px;font-weight:800;text-anchor:middle}
+.dim{opacity:.22}
+.hit rect{stroke:var(--ink);stroke-width:4}
+.bar{position:absolute;top:calc(env(safe-area-inset-top,0px) + 12px);left:12px;right:12px;display:flex;flex-wrap:wrap;gap:8px;align-items:center;pointer-events:none}
+.bar>*{pointer-events:auto}
+.search{flex:1 1 200px;max-width:340px;display:flex;align-items:center;background:var(--surface);border:1.5px solid var(--line);border-radius:12px;padding:0 12px}
+.search input{flex:1;min-width:0;border:0;background:none;color:var(--ink);font:600 15px "Nunito",system-ui,sans-serif;padding:11px 0;outline:none}
+.search:focus-within{border-color:var(--b0)}
+.count{font-size:13px;color:var(--muted);font-weight:700}
+button{font:700 14px "Nunito",system-ui,sans-serif;color:var(--ink);background:var(--surface);border:1.5px solid var(--line);border-radius:12px;padding:9px 13px;cursor:pointer}
+button:hover{border-color:var(--muted)}
+button:focus-visible{outline:3px solid var(--b0);outline-offset:2px}
+.zoom{position:absolute;right:12px;bottom:calc(env(safe-area-inset-bottom,0px) + 12px);display:flex;flex-direction:column;gap:6px}
+.zoom button{width:42px;height:42px;padding:0;font-size:20px}
+.hint{position:absolute;left:12px;bottom:calc(env(safe-area-inset-bottom,0px) + 14px);font-size:13px;color:var(--muted);font-weight:600;max-width:260px}
+.panel{position:absolute;top:70px;right:12px;width:min(330px,calc(100% - 24px));max-height:calc(100% - 150px);overflow:auto;background:var(--surface);border:1.5px solid var(--line);border-top:6px solid var(--c,var(--b0));border-radius:14px;padding:16px 18px 18px;display:none;box-shadow:0 8px 28px rgba(10,15,40,.18)}
+.panel.open{display:block}
+.panel h2{margin:0 28px 4px 0;font-size:19px;line-height:1.25}
+.crumb{font-size:13px;color:var(--muted);font-weight:700;margin-bottom:10px}
+.panel p{margin:0 0 12px;line-height:1.6;font-size:15.5px;max-width:60ch}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chips button{padding:6px 10px;font-size:13px;border-color:var(--c)}
+.x{position:absolute;top:10px;right:10px;width:32px;height:32px;padding:0}
+@media (max-width:700px){
+  .panel{top:auto;right:8px;left:8px;bottom:calc(env(safe-area-inset-bottom,0px) + 8px);width:auto;max-height:44%}
+  .zoom{bottom:auto;top:calc(env(safe-area-inset-top,0px) + 62px)}
+  .zoom button{width:38px;height:38px}
+  .hint{display:none}
+}
+@media (prefers-reduced-motion:no-preference){.link{transition:opacity .2s}}
+
+
+</style>
+</head>
+<body>
+<div class="app">
+  <svg id="map" role="group" aria-label="Mapa mental do manual"></svg>
+  <div class="bar">
+    <label class="search"><input id="q" type="search" placeholder="Buscar no manual…" aria-label="Buscar no manual" autocomplete="off"></label>
+    <span class="count" id="count" aria-live="polite"></span>
+    <button id="all">Expandir tudo</button>
+    <button id="none">Recolher</button>
+  </div>
+  <div class="zoom">
+    <button id="zin" aria-label="Aproximar">+</button>
+    <button id="zout" aria-label="Afastar">−</button>
+    <button id="fit" aria-label="Ajustar à tela" style="font-size:15px">⤢</button>
+  </div>
+  <div class="hint" id="hint">Clique em um tópico para abrir os ramos e ler o texto. Arraste para mover, role para dar zoom.</div>
+  <aside class="panel" id="panel" aria-live="polite">
+    <button class="x" id="close" aria-label="Fechar">×</button>
+    <div class="crumb" id="crumb"></div>
+    <h2 id="ptitle"></h2>
+    <p id="ptext"></p>
+    <div class="chips" id="chips"></div>
+  </aside>
+</div>
+<script>
+var DATA={t:"Jogos na prática psicopedagógica",d:"Manual de aplicação de jogos na avaliação e na intervenção psicopedagógica. Este é um texto de exemplo, criado só para demonstrar o mapa interativo.",kids:[
+{t:"Fundamentos",d:"Por que o jogo é uma ferramenta legítima de avaliação e intervenção.",kids:[
+{t:"O jogo como linguagem",d:"Para a criança, jogar é uma forma de pensar, simbolizar e elaborar experiências. O psicopedagogo lê no jogo estratégias, bloqueios e modos de aprender."},
+{t:"Zona de desenvolvimento proximal",d:"O jogo mediado permite propor desafios um pouco acima do que a criança faz sozinha, com apoio gradual do aplicador."},
+{t:"Papel do erro",d:"O erro é tratado como informação sobre o raciocínio, não como falha. Antes de corrigir, o aplicador pergunta: “como você pensou?”."}]},
+{t:"Preparação",d:"O que fazer antes da sessão para que o jogo cumpra o objetivo.",kids:[
+{t:"Escolha do jogo",d:"Selecione o jogo conforme o objetivo: atenção, memória, planejamento, flexibilidade ou linguagem. Jogue uma vez antes da sessão para conhecer as regras."},
+{t:"Ambiente e materiais",d:"Mesa limpa, boa luz e poucos estímulos concorrentes. Deixe as peças contadas e um resumo das regras à mão."},
+{t:"Combinados iniciais",d:"Apresente a duração da sessão, as regras básicas e o direito de pedir pausa. Confirme se a criança entendeu."}]},
+{t:"Aplicação",d:"Como conduzir a partida, do início ao fechamento.",kids:[
+{t:"Apresentação das regras",d:"Explique em etapas curtas, com uma rodada de demonstração. Peça que a criança reformule a regra com as próprias palavras."},
+{t:"Mediação durante o jogo",d:"Use perguntas abertas, espere antes de intervir e ofereça pistas graduais: primeiro verbal, depois visual, por fim concreta."},
+{t:"Fechamento da partida",d:"Converse sobre o que foi fácil, o que foi difícil e o que a criança faria diferente. Relacione a estratégia usada a situações da escola."}]},
+{t:"Observação e registro",d:"Como transformar o que aconteceu na partida em informação útil.",kids:[
+{t:"O que observar",d:"Tempo de resposta, tolerância à frustração, uso de estratégias, atenção sustentada, cooperação e linguagem durante a partida."},
+{t:"Ficha de registro",d:"Anote data, jogo, nível, comportamentos observados, intervenções feitas e hipóteses. Descreva os fatos antes de interpretar."},
+{t:"Devolutiva à família",d:"Compartilhe os avanços em linguagem simples, com exemplos concretos, e sugira jogos para praticar em casa."}]},
+{t:"Cuidados éticos",d:"Limites e atenções para uma prática respeitosa.",kids:[
+{t:"Sigilo e consentimento",d:"Informe à família e à criança o objetivo das sessões e guarde os registros com acesso restrito."},
+{t:"Competição e frustração",d:"Prefira jogos cooperativos no início. Introduza a competição aos poucos e acolha as emoções de perder."},
+{t:"Adaptações",d:"Ajuste regras, tempo e materiais para crianças com TDAH, TEA ou deficiência, sem infantilizar a atividade."}]}
+]};
+
+var NS="http://www.w3.org/2000/svg",svg=document.getElementById("map");
+var uid=0,byId={};
+(function idn(n,p,b,l){n.id=uid++;n.p=p;n.b=b;n.l=l;byId[n.id]=n;(n.kids||[]).forEach(function(k,i){idn(k,n,l===0?i:b,l+1)})})(DATA,null,-1,0);
+var open=new Set(),sel=null,hits=null,view={x:-600,y:-400,w:1200,h:800},laid=[];
+var R1=215,R2=440,STEP=.43;
+
+function norm(s){return s.normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase()}
+function wrap(t,max){var w=t.split(" "),L=[],c="";w.forEach(function(x){if(c&&(c+" "+x).length>max){L.push(c);c=x}else c=c?c+" "+x:x});if(c)L.push(c);return L}
+function el(n,a,p){var e=document.createElementNS(NS,n);for(var k in a)e.setAttribute(k,a[k]);if(p)p.appendChild(e);return e}
+
+function layout(){
+  laid=[{n:DATA,x:0,y:0}];
+  var K=DATA.kids,N=K.length;
+  K.forEach(function(k,i){
+    var a=i*2*Math.PI/N-Math.PI/2;
+    laid.push({n:k,x:Math.cos(a)*R1,y:Math.sin(a)*R1});
+    if(open.has(k.id)&&k.kids){
+      k.kids.forEach(function(c,j){
+        var b=a+(j-(k.kids.length-1)/2)*STEP;
+        laid.push({n:c,x:Math.cos(b)*R2,y:Math.sin(b)*R2});
+      });
+    }
+  });
+}
+
+function render(){
+  layout();
+  svg.innerHTML="";
+  var gl=el("g",{},svg),gn=el("g",{},svg),pos={};
+  laid.forEach(function(o){pos[o.n.id]=o});
+  laid.forEach(function(o){
+    var n=o.n;if(!n.p)return;var q=pos[n.p.id];
+    var l=el("path",{d:"M"+q.x+" "+q.y+"L"+o.x+" "+o.y,"class":"link"+(dimmed(n)?" dim":"")},gl);
+    l.style.setProperty("--c","var(--b"+n.b+")");
+  });
+  laid.forEach(function(o){
+    var n=o.n,lines=wrap(n.t,n.l===0?16:18),mx=Math.max.apply(null,lines.map(function(s){return s.length}));
+    var w=mx*8+(n.l===0?40:30),h=lines.length*18+(n.l===0?30:18);
+    var g=el("g",{"class":"node l"+n.l+(sel===n.id?" sel":"")+(hits&&hits.has(n.id)?" hit":"")+(dimmed(n)?" dim":""),transform:"translate("+o.x+" "+o.y+")",tabindex:0,role:"button","data-id":n.id,"aria-label":n.t+(n.kids?(open.has(n.id)?", aberto":", fechado"):"")},gn);
+    if(n.b>=0)g.style.setProperty("--c","var(--b"+n.b+")");
+    el("rect",{x:-w/2,y:-h/2,width:w,height:h,rx:n.l===0?h/2:12},g);
+    lines.forEach(function(s,i){var t=el("text",{y:(i-(lines.length-1)/2)*18+5},g);t.textContent=s});
+    if(n.l===1&&n.kids){
+      var bx=w/2-2,by=-h/2+2;
+      el("circle",{cx:bx,cy:by,r:10,"class":"badge"},g);
+      var bt=el("text",{x:bx,y:by+4.5,"class":"badge-t"},g);bt.textContent=open.has(n.id)?"−":"+";
+    }
+  });
+  applyView();
+}
+function dimmed(n){return hits&&!hits.has(n.id)&&!hasHitDesc(n)}
+function hasHitDesc(n){return (n.kids||[]).some(function(k){return hits.has(k.id)})}
+
+function applyView(){svg.setAttribute("viewBox",view.x+" "+view.y+" "+view.w+" "+view.h)}
+function fit(){
+  var W=svg.clientWidth||800,H=svg.clientHeight||600,x0=1e9,x1=-1e9,y0=1e9,y1=-1e9;
+  laid.forEach(function(o){var hw=o.n.l===2?95:80;x0=Math.min(x0,o.x-hw);x1=Math.max(x1,o.x+hw);y0=Math.min(y0,o.y-40);y1=Math.max(y1,o.y+40)});
+  var pad=60,bw=x1-x0+pad*2,bh=y1-y0+pad*2+60,s=Math.max(bw/W,bh/H);
+  view={w:W*s,h:H*s,x:(x0+x1)/2-W*s/2,y:(y0+y1)/2-H*s/2+20};
+  applyView();
+}
+function zoom(f,cx,cy){
+  var W=svg.clientWidth,H=svg.clientHeight;
+  if(cx==null){cx=W/2;cy=H/2}
+  var px=view.x+cx/W*view.w,py=view.y+cy/H*view.h,nw=view.w/f;
+  if(nw<250||nw>8000)return;
+  var nh=view.h/f;
+  view={w:nw,h:nh,x:px-cx/W*nw,y:py-cy/H*nh};applyView();
+}
+
+/* painel */
+var panel=document.getElementById("panel");
+function show(n){
+  sel=n.id;
+  var path=[],p=n.p;while(p){path.unshift(p.t);p=p.p}
+  document.getElementById("crumb").textContent=path.join(" › ");
+  document.getElementById("ptitle").textContent=n.t;
+  document.getElementById("ptext").textContent=n.d;
+  var ch=document.getElementById("chips");ch.innerHTML="";
+  (n.kids||[]).forEach(function(k){var b=document.createElement("button");b.textContent=k.t;b.onclick=function(){open.add(n.id);show(k);render()};ch.appendChild(b)});
+  panel.style.setProperty("--c",n.b>=0?"var(--b"+n.b+")":"var(--ink)");
+  panel.classList.add("open");
+}
+document.getElementById("close").onclick=function(){panel.classList.remove("open");sel=null;render()};
+
+function activate(id){
+  var n=byId[id];if(!n)return;
+  if(n.kids){
+    if(open.has(id)&&sel===id)open.delete(id);else open.add(id);
+  }
+  show(n);render();
+}
+svg.addEventListener("click",function(e){
+  if(moved)return;
+  var g=e.target.closest(".node");if(g)activate(+g.getAttribute("data-id"));
+});
+svg.addEventListener("keydown",function(e){
+  if(e.key==="Enter"||e.key===" "){var g=e.target.closest(".node");if(g){e.preventDefault();var id=+g.getAttribute("data-id");activate(id);var again=svg.querySelector('[data-id="'+id+'"]');if(again)again.focus()}}
+});
+
+/* arrastar e zoom */
+var drag=null,moved=false;
+svg.addEventListener("pointerdown",function(e){drag={x:e.clientX,y:e.clientY,vx:view.x,vy:view.y};moved=false});
+window.addEventListener("pointermove",function(e){
+  if(!drag)return;
+  var dx=e.clientX-drag.x,dy=e.clientY-drag.y;
+  if(!moved&&Math.hypot(dx,dy)>5){moved=true;svg.classList.add("drag")}
+  if(moved){view.x=drag.vx-dx*view.w/svg.clientWidth;view.y=drag.vy-dy*view.h/svg.clientHeight;applyView()}
+});
+window.addEventListener("pointerup",function(){drag=null;svg.classList.remove("drag");setTimeout(function(){moved=false},0)});
+svg.addEventListener("wheel",function(e){e.preventDefault();var r=svg.getBoundingClientRect();zoom(e.deltaY<0?1.15:1/1.15,e.clientX-r.left,e.clientY-r.top)},{passive:false});
+document.getElementById("zin").onclick=function(){zoom(1.25)};
+document.getElementById("zout").onclick=function(){zoom(.8)};
+document.getElementById("fit").onclick=fit;
+document.getElementById("all").onclick=function(){DATA.kids.forEach(function(k){open.add(k.id)});render();fit()};
+document.getElementById("none").onclick=function(){open.clear();hits=null;document.getElementById("q").value="";document.getElementById("count").textContent="";render();fit()};
+
+/* busca */
+var qi=document.getElementById("q");
+qi.addEventListener("input",function(){
+  var q=norm(qi.value.trim()),c=document.getElementById("count");
+  if(q.length<2){hits=null;c.textContent="";render();return}
+  hits=new Set();
+  Object.keys(byId).forEach(function(k){var n=byId[k];if(n.l>0&&norm(n.t+" "+n.d).indexOf(q)>-1){hits.add(n.id);if(n.p&&n.p.l===1)open.add(n.p.id)}});
+  c.textContent=hits.size?hits.size+(hits.size===1?" resultado":" resultados"):"Nenhum resultado";
+  render();
+});
+qi.addEventListener("keydown",function(e){
+  if(e.key==="Enter"&&hits&&hits.size){var id=Array.from(hits)[0];show(byId[id]);render()}
+});
+
+window.addEventListener("resize",fit);
+render();fit();
+</script>
+</body>
+</html>
